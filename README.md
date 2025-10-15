@@ -72,6 +72,18 @@ The system consists of two interconnected web applications sharing the same Fire
 ---
 ## Installation & Setup
 ### Clone the repository
+git clone https://github.com/PSrandula/Real-time-Breakdown-Reporting-and-Maintenance-System.git
+cd Real-time-Breakdown-Reporting-and-Maintenance-System
+
+## Install dependencies
+npm install
+
+## Add Firebase configuration
+Create a file named firebaseConfig.js inside the src folder.
+Paste your Firebase project credentials (from Firebase Console).
+
+## Run the app
+npm start
 
 
 
