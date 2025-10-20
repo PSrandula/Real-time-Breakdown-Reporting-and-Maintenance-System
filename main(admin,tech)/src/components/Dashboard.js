@@ -170,7 +170,7 @@ export default function Dashboard() {
           </div>
           
           <div className="flex flex-wrap gap-2">
-            {["all", "pending", "assigned", "resolved"].map((status) => (
+            {["all", "pending", "assigned", "in-progress", "resolved"].map((status) => (
               <button
                 key={status}
                 onClick={() => setFilter(status)}

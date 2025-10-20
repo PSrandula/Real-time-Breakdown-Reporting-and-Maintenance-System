@@ -13,7 +13,7 @@ export default function TechnicianDashboard() {
   const [activeTask, setActiveTask] = useState(null);
   const [fixDetails, setFixDetails] = useState("");
 
-  // Get current technician info
+  // Get current technician info (robust on refresh)
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (!user) {
@@ -29,6 +29,7 @@ export default function TechnicianDashboard() {
           if (tech) setCurrentTech(tech.name);
         }
       } catch (_err) {
+        // ignore; loading will be handled by tasks effect
       }
     });
 
@@ -47,10 +48,12 @@ export default function TechnicianDashboard() {
           .filter(([_, val]) => val.assignedTechnician?.name === currentTech)
           .map(([id, val]) => ({ id, ...val }))
           .sort((a, b) => {
-            // Sort by status: assigned first, then resolved
-            if (a.status === "assigned" && b.status !== "assigned") return -1;
-            if (a.status !== "assigned" && b.status === "assigned") return 1;
-            // Then sort by creation date (newest first)
+            // Order: assigned -> in-progress -> resolved -> others
+            const order = { assigned: 0, "in-progress": 1, resolved: 2, pending: 3 };
+            const oa = order[a.status] ?? 99;
+            const ob = order[b.status] ?? 99;
+            if (oa !== ob) return oa - ob;
+            // Newest first
             return (b.timestamps?.created || 0) - (a.timestamps?.created || 0);
           });
         setTasks(filtered);
@@ -89,6 +92,27 @@ export default function TechnicianDashboard() {
     }
   };
 
+  // Start work -> set to in-progress
+  const handleStartWork = async (task) => {
+    setLoading(true);
+    try {
+      const brkRef = ref(db, "breakdowns/" + task.id);
+      const snapshot = await get(brkRef);
+      const currentTimestamps = snapshot.val()?.timestamps || { created: Date.now() };
+
+      await update(brkRef, {
+        status: "in-progress",
+        timestamps: { ...currentTimestamps, started: Date.now(), updated: Date.now() },
+      });
+
+      toast.info("Task set to In Progress.");
+    } catch (err) {
+      toast.error("Failed to update task: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Logout technician
   const handleLogout = async () => {
     try {
@@ -106,6 +130,7 @@ export default function TechnicianDashboard() {
     switch (status) {
       case "resolved": return "bg-green-100 text-green-800 border-green-200";
       case "assigned": return "bg-blue-100 text-blue-800 border-blue-200";
+      case "in-progress": return "bg-purple-100 text-purple-800 border-purple-200";
       default: return "bg-yellow-100 text-yellow-800 border-yellow-200";
     }
   };
@@ -114,6 +139,7 @@ export default function TechnicianDashboard() {
     switch (status) {
       case "resolved": return <FiCheckCircle className="inline mr-1" />;
       case "assigned": return <FiTool className="inline mr-1" />;
+      case "in-progress": return <FiClock className="inline mr-1" />;
       default: return <FiClock className="inline mr-1" />;
     }
   };
@@ -267,14 +293,26 @@ export default function TechnicianDashboard() {
 
                     {/* Action Buttons */}
                     <div className="flex-shrink-0">
-                      {task.status === "assigned" ? (
+                      {task.status === "assigned" && (
+                        <button
+                          onClick={() => handleStartWork(task)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl transition duration-200 font-medium"
+                          disabled={loading}
+                        >
+                          {loading ? "Updating..." : "Start Work"}
+                        </button>
+                      )}
+
+                      {task.status === "in-progress" && (
                         <button
                           onClick={() => setActiveTask(activeTask?.id === task.id ? null : task)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl transition duration-200 font-medium"
+                          className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-xl transition duration-200 font-medium"
                         >
-                          {activeTask?.id === task.id ? "Cancel" : "Mark Resolved"}
+                          {activeTask?.id === task.id ? "Cancel" : "Add Resolution"}
                         </button>
-                      ) : (
+                      )}
+
+                      {task.status === "resolved" && (
                         <span className="inline-flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-xl font-medium">
                           <FiCheckCircle className="mr-2" />
                           Completed
@@ -284,7 +322,7 @@ export default function TechnicianDashboard() {
                   </div>
 
                   {/* Resolution Form */}
-                  {activeTask?.id === task.id && (
+                  {activeTask?.id === task.id && task.status === "in-progress" && (
                     <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
                       <h4 className="font-semibold text-blue-800 mb-3">Resolution Details</h4>
                       <textarea
