@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { FiEdit, FiTrash2, FiCheck, FiX, FiUser, FiClock, FiMessageSquare } from "react-icons/fi";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import emailjs from "@emailjs/browser";
 
 export default function BreakdownCard({ data }) {
   const [tech, setTech] = useState(data.assignedTechnician?.name || "");
@@ -44,33 +45,58 @@ export default function BreakdownCard({ data }) {
 
   // Assign technician
   const handleAssign = async () => {
-    if (!tech) return toast.error("Please select a technician!");
-    
-    setLoading(true);
-    try {
-      const breakdownRef = ref(db, "breakdowns/" + data.id);
+  if (!tech) return toast.error("Please select a technician!");
 
-      const snapshot = await new Promise((resolve) =>
-        onValue(breakdownRef, (snap) => resolve(snap), { onlyOnce: true })
-      );
+  setLoading(true);
+  try {
+    const breakdownRef = ref(db, "breakdowns/" + data.id);
 
-      const currentTimestamps = snapshot.val()?.timestamps || { created: Date.now() };
-      const selectedTech = technicians.find((t) => t.name === tech);
-      if (!selectedTech) return;
+    // Get current data for timestamps
+    const snapshot = await new Promise((resolve) =>
+      onValue(breakdownRef, (snap) => resolve(snap), { onlyOnce: true })
+    );
 
-      await update(breakdownRef, {
-        status: "assigned",
-        assignedTechnician: selectedTech,
-        timestamps: { ...currentTimestamps, updated: Date.now() },
-      });
+    // ✅ This is the full breakdown data
+    const breakdownData = snapshot.val();  // <-- define it here
 
-      toast.success("Technician assigned successfully!");
-    } catch (err) {
-      toast.error("Failed to assign technician: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const currentTimestamps = breakdownData?.timestamps || { created: Date.now() };
+
+    // Find the selected technician object
+    const selectedTech = technicians.find((t) => t.name === tech);
+    if (!selectedTech) return toast.error("Selected technician not found!");
+
+    // 1️⃣ Update Firebase
+    await update(breakdownRef, {
+      status: "assigned",
+      assignedTechnician: selectedTech,
+      timestamps: { ...currentTimestamps, updated: Date.now() },
+    });
+
+    // 2️⃣ Send Email via EmailJS
+    const emailParams = {
+      to_email: selectedTech.email,
+      technician_name: selectedTech.name,
+      issue: breakdownData.message || "No issue title",
+      message: breakdownData.message || "No message",
+      reporter_name: breakdownData.reporterName || "Unknown",
+      status: "assigned",
+    };
+
+    await emailjs.send(
+      "service_f5ao9z8",   // your EmailJS service ID
+      "template_y9iswih",  // your EmailJS template ID
+      emailParams,
+      "pHdd-nSA8uaHsNUkf" // your EmailJS public key
+    );
+
+    toast.success("Technician assigned and email sent!");
+  } catch (err) {
+    toast.error("Failed to assign technician or send email: " + err.message);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // Edit report
   const handleEdit = async () => {
