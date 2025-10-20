@@ -56,7 +56,7 @@ export default function BreakdownCard({ data }) {
       onValue(breakdownRef, (snap) => resolve(snap), { onlyOnce: true })
     );
 
-    // ✅ This is the full breakdown data
+    // This is the full breakdown data
     const breakdownData = snapshot.val();  // <-- define it here
 
     const currentTimestamps = breakdownData?.timestamps || { created: Date.now() };
@@ -65,14 +65,14 @@ export default function BreakdownCard({ data }) {
     const selectedTech = technicians.find((t) => t.name === tech);
     if (!selectedTech) return toast.error("Selected technician not found!");
 
-    // 1️⃣ Update Firebase
+    // Update Firebase
     await update(breakdownRef, {
       status: "assigned",
       assignedTechnician: selectedTech,
       timestamps: { ...currentTimestamps, updated: Date.now() },
     });
 
-    // 2️⃣ Send Email via EmailJS
+    // Send Email via EmailJS
     const emailParams = {
       to_email: selectedTech.email,
       technician_name: selectedTech.name,
